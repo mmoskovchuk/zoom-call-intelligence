@@ -4,9 +4,15 @@ N8N := $(DC) exec -T n8n n8n
 PSQL := $(DC) exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 # idempotency_key of fixtures/zoom/recording.completed.json (<meeting_uuid>:<audio file_id>)
 FIXTURE_KEY := 4444AAAiAAAAAiAiAiiAii==:a1b2c3d4-0000-1111-2222-333344445555
+# fixtures/zoom/recording.completed.missing-audio.json → download fails (404)
+FAIL_KEY := FAIL0000missingAudio0000==:00000000-dead-beef-0000-000000000000
 LAST_EXEC_SQL := select e.id || '|' || e.status || '|' || d.data from execution_entity e join execution_data d on d.\"executionId\" = e.id order by e.id desc limit 1
+# Poll until the latest execution is finished (max ~4 min)
+WAIT_EXEC = echo "waiting for pipeline..."; for i in $$(seq 1 80); do sleep 3; \
+	  st=$$($(PSQL) -Atc "select status from execution_entity order by id desc limit 1"); \
+	  [ "$$st" != "running" ] && [ "$$st" != "new" ] && break; done
 
-.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom last-execution test-download test-transcribe test-analyze
+.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom last-execution test-download test-transcribe test-analyze test-e2e test-failure
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n",$$1,$$2}'
@@ -64,18 +70,34 @@ test-download: ## Fresh recording.completed → n8n downloads audio from mock-zo
 test-transcribe: ## Fresh event → download → Whisper; prints text length only (~$0.006/min audio)
 	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
-	@echo "waiting for transcription..."; for i in $$(seq 1 60); do sleep 3; \
-	  st=$$($(PSQL) -Atc "select status from execution_entity order by id desc limit 1"); \
-	  [ "$$st" != "running" ] && [ "$$st" != "new" ] && break; done
+	@$(WAIT_EXEC)
 	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Transcribe" --text-stats "Transcribe"
 
 test-analyze: ## Fresh event → … → Transcribe → Analyze; prints output structure only
 	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
-	@echo "waiting for pipeline..."; for i in $$(seq 1 80); do sleep 3; \
-	  st=$$($(PSQL) -Atc "select status from execution_entity order by id desc limit 1"); \
-	  [ "$$st" != "running" ] && [ "$$st" != "new" ] && break; done
+	@$(WAIT_EXEC)
 	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Analyze" --shape "Analyze"
+
+test-e2e: ## Full pipeline: webhook → … → Save Report; checks report row + status=done
+	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
+	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
+	@$(WAIT_EXEC)
+	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Save Report"
+	@row=$$($(PSQL) -Atc "select e.status || ' | report: ' || count(r.id) || ' | transcript chars: ' || coalesce(max(length(r.transcript)), 0) \
+	  || ' | key_points: ' || coalesce(max(jsonb_array_length(r.analysis->'key_points')), 0) \
+	  || ' | action_items: ' || coalesce(max(jsonb_array_length(r.analysis->'action_items')), 0) \
+	  from app.processed_events e left join app.call_reports r on r.event_id = e.id \
+	  where e.idempotency_key = '$(FIXTURE_KEY)' group by e.status"); \
+	  echo "status: $$row"; [[ "$$row" == "done | report: 1 "* ]] && echo "e2e OK" || { echo "e2e FAILED"; exit 1; }
+
+test-failure: ## Missing audio → Download fails → event marked failed (no OpenAI cost)
+	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FAIL_KEY)'"
+	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.missing-audio.json
+	@$(WAIT_EXEC)
+	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Mark Failed" || true
+	@row=$$($(PSQL) -Atc "select status || ' | ' || coalesce(left(error, 120), '-') from app.processed_events where idempotency_key = '$(FAIL_KEY)'"); \
+	  echo "status: $$row"; [[ "$$row" == failed* ]] && echo "failure path OK" || { echo "failure path FAILED"; exit 1; }
 
 test-mock-zoom: ## Check n8n can download fixtures/audio/sample.m4a from mock-zoom
 	@test -f fixtures/audio/sample.m4a || { echo "missing fixtures/audio/sample.m4a (see fixtures/audio/README.md)"; exit 1; }

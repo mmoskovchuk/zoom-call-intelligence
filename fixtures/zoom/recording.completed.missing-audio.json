@@ -1,0 +1,35 @@
+{
+  "event": "recording.completed",
+  "event_ts": 1759060000000,
+  "download_token": "fake-download-token",
+  "payload": {
+    "account_id": "AbCdEfGhIj",
+    "object": {
+      "uuid": "FAIL0000missingAudio0000==",
+      "id": 80000000000,
+      "host_id": "x1yCzABCDEfg23HiJKl4mN",
+      "host_email": "host@example.com",
+      "topic": "Failure path test — audio file is missing",
+      "type": 2,
+      "start_time": "2026-09-28T12:00:00Z",
+      "timezone": "Europe/Kyiv",
+      "duration": 5,
+      "total_size": 1000,
+      "recording_count": 1,
+      "recording_files": [
+        {
+          "id": "00000000-dead-beef-0000-000000000000",
+          "meeting_id": "FAIL0000missingAudio0000==",
+          "recording_start": "2026-09-28T12:00:05Z",
+          "recording_end": "2026-09-28T12:05:05Z",
+          "file_type": "M4A",
+          "file_extension": "M4A",
+          "file_size": 1000,
+          "download_url": "http://mock-zoom:8000/missing.m4a",
+          "status": "completed",
+          "recording_type": "audio_only"
+        }
+      ]
+    }
+  }
+}

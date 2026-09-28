@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-28T16:08:43.816Z",
+  "updatedAt": "2026-09-28T16:35:03.694Z",
   "createdAt": "2026-09-28T11:44:29.780Z",
   "id": "zoomIntake00001",
   "name": "01 · Zoom Webhook Intake",
@@ -114,7 +114,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO app.processed_events (idempotency_key, source, meeting_uuid, file_id)\nVALUES ($1, $2, $3, $4)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "query": "INSERT INTO app.processed_events (idempotency_key, source, meeting_uuid, file_id)\nVALUES ($1, $2, $3, $4)\nON CONFLICT (idempotency_key) DO UPDATE\n  SET status = 'received', error = NULL, updated_at = now()\n  WHERE app.processed_events.status = 'failed'\nRETURNING id;",
         "options": {
           "queryReplacement": "={{ [$json.idempotency_key, $json.source, $json.meeting.uuid, $json.audio.file_id] }}"
         }
@@ -205,13 +205,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        1168,
-        -160
+        1152,
+        -144
       ],
       "id": "d0abe6f6-57f9-4f6d-b82e-ab66dc9c12d5",
       "name": "Download Audio",
       "retryOnFail": true,
-      "waitBetweenTries": 5000
+      "waitBetweenTries": 5000,
+      "notesInFlow": false,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -235,7 +237,8 @@
           "id": "AtKEtaXjstKCRc90",
           "name": "OpenAI account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -271,8 +274,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        1568,
-        -160
+        1664,
+        -176
       ],
       "id": "f393548a-e868-4f6d-ba23-efe0b92afb42",
       "name": "Analyze",
@@ -283,18 +286,55 @@
           "id": "AtKEtaXjstKCRc90",
           "name": "OpenAI account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
-      "parameters": {},
-      "id": "b61cc694-00e4-4142-84f0-0d7fc6b4187a",
-      "name": "TODO: Step 4 (Save)",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH report AS (\n  INSERT INTO app.call_reports\n    (event_id, meeting_uuid, meeting_topic, host_email, start_time, duration_min, transcript, analysis)\n  VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)\n  RETURNING id, event_id\n)\nUPDATE app.processed_events e\nSET status = 'done', updated_at = now()\nFROM report\nWHERE e.id = report.event_id\nRETURNING report.id AS report_id;",
+        "options": {
+          "queryReplacement": "={{ [   $('Register Event').item.json.id,   $('Normalize Recording').item.json.meeting.uuid,   $('Normalize Recording').item.json.meeting.topic,   $('Normalize Recording').item.json.meeting.host_email,   $('Normalize Recording').item.json.meeting.start_time,   $('Normalize Recording').item.json.meeting.duration_min,   $('Transcribe').item.json.text,   JSON.stringify($json.output[0].content[0].text) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
       "position": [
-        1888,
-        -160
-      ]
+        2080,
+        -192
+      ],
+      "id": "06ed7abc-c417-48fc-950d-993ab2699269",
+      "name": "Save Report",
+      "credentials": {
+        "postgres": {
+          "id": "vJJkif8xtfcG9afR",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE app.processed_events\nSET status = 'failed', error = $2, updated_at = now()\nWHERE id = $1\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Register Event').item.json.id, String($json.message ?? $json.error?.message ?? 'unknown error').slice(0, 1000) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2176,
+        368
+      ],
+      "id": "f5081f00-b6c6-474e-b379-07d72c5d3e59",
+      "name": "Mark Failed",
+      "credentials": {
+        "postgres": {
+          "id": "vJJkif8xtfcG9afR",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "connections": {
@@ -397,6 +437,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Mark Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -408,6 +455,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Mark Failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -415,7 +469,26 @@
       "main": [
         [
           {
-            "node": "TODO: Step 4 (Save)",
+            "node": "Save Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Report": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Mark Failed",
             "type": "main",
             "index": 0
           }
@@ -435,14 +508,14 @@
   },
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "098c3d5b-b5ac-4f8d-95e6-073b9f1af3bc",
-  "activeVersionId": "098c3d5b-b5ac-4f8d-95e6-073b9f1af3bc",
-  "versionCounter": 79,
+  "versionId": "ab615cb2-5019-4a2f-84db-9e8fe57977e1",
+  "activeVersionId": "ab615cb2-5019-4a2f-84db-9e8fe57977e1",
+  "versionCounter": 109,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "tags": [],
   "versionMetadata": {
-    "name": "Version 098c3d5b",
+    "name": "Version ab615cb2",
     "description": ""
   }
 }
