@@ -4,6 +4,8 @@ Automated post-call pipeline: **Zoom recording → n8n → OpenAI (Whisper + GPT
 
 The user just records a Zoom call to the cloud — a structured report (summary, participants, key points, action items) appears automatically.
 
+![n8n workflow — successful end-to-end run](docs/workflow.png)
+
 ```
 Zoom ──(recording.completed, HMAC-signed)──► Cloudflare Tunnel ──► n8n Webhook
                                                                       │
@@ -15,6 +17,18 @@ Zoom ──(recording.completed, HMAC-signed)──► Cloudflare Tunnel ──�
    Download Audio → Transcribe (Whisper) → Analyze (GPT, strict JSON Schema) → Save Report
          └──────────────┴───────────── any error ──────────────┴──→ Mark Failed
 ```
+
+### Example output
+Stored in `app.call_reports.analysis` (full synthetic example: [`docs/example-report.json`](docs/example-report.json)):
+```json
+{
+  "summary": "Менеджер провів ознайомчий дзвінок з ACME Corp щодо автоматизації обробки клієнтських звернень. …",
+  "participants": [{ "name": "Андрій", "role": "керівник служби підтримки, ACME Corp" }, …],
+  "key_points": ["Звернення зараз розподіляють вручну три оператори", …],
+  "action_items": [{ "task": "Надіслати комерційну пропозицію щодо пілотного проєкту", "owner": "Олена", "due": "до п'ятниці" }, …]
+}
+```
+Report language is set in the system prompt (Ukrainian); field names follow the schema.
 
 ## Stack
 | Service     | Purpose |
