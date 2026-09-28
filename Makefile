@@ -4,8 +4,9 @@ N8N := $(DC) exec -T n8n n8n
 PSQL := $(DC) exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" "$$@"' --
 # idempotency_key of fixtures/zoom/recording.completed.json (<meeting_uuid>:<audio file_id>)
 FIXTURE_KEY := 4444AAAiAAAAAiAiAiiAii==:a1b2c3d4-0000-1111-2222-333344445555
+LAST_EXEC_SQL := select e.id || '|' || e.status || '|' || d.data from execution_entity e join execution_data d on d.\"executionId\" = e.id order by e.id desc limit 1
 
-.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom
+.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom last-execution test-download
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n",$$1,$$2}'
@@ -51,6 +52,14 @@ test-webhook: ## Send signed fixtures to local webhook
 	./scripts/send_zoom_event.py fixtures/zoom/endpoint.url_validation.json
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json --bad-signature
+
+last-execution: ## Summary of the latest n8n execution (no item data)
+	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py
+
+test-download: ## Fresh recording.completed → n8n downloads audio from mock-zoom
+	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
+	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
+	@sleep 5; $(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Download Audio"
 
 test-mock-zoom: ## Check n8n can download fixtures/audio/sample.m4a from mock-zoom
 	@test -f fixtures/audio/sample.m4a || { echo "missing fixtures/audio/sample.m4a (see fixtures/audio/README.md)"; exit 1; }

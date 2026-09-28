@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-28T14:03:31.456Z",
+  "updatedAt": "2026-09-28T15:24:25.910Z",
   "createdAt": "2026-09-28T11:44:29.780Z",
   "id": "zoomIntake00001",
   "name": "01 · Zoom Webhook Intake",
@@ -107,8 +107,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1200,
-        -176
+        1680,
+        -352
       ]
     },
     {
@@ -185,11 +185,44 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1216,
-        128
+        1344,
+        304
       ],
       "id": "d43de4b2-b1ec-40a1-804d-68017029382e",
       "name": "Duplicate (skip)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Normalize Recording').item.json.audio.download_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Normalize Recording').item.json.audio.download_token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "audio"
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1328,
+        -304
+      ],
+      "id": "d0abe6f6-57f9-4f6d-b82e-ab66dc9c12d5",
+      "name": "Download Audio",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
     }
   ],
   "connections": {
@@ -270,7 +303,7 @@
       "main": [
         [
           {
-            "node": "TODO: Step 2 (Download + Transcribe)",
+            "node": "Download Audio",
             "type": "main",
             "index": 0
           }
@@ -278,6 +311,17 @@
         [
           {
             "node": "Duplicate (skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio": {
+      "main": [
+        [
+          {
+            "node": "TODO: Step 2 (Download + Transcribe)",
             "type": "main",
             "index": 0
           }
@@ -297,14 +341,14 @@
   },
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "7ae14c86-62c1-44ad-b3fb-dce26827c981",
-  "activeVersionId": "7ae14c86-62c1-44ad-b3fb-dce26827c981",
-  "versionCounter": 27,
+  "versionId": "549a0467-bc05-44e2-a0f9-d1cff7236b64",
+  "activeVersionId": "549a0467-bc05-44e2-a0f9-d1cff7236b64",
+  "versionCounter": 45,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "tags": [],
   "versionMetadata": {
-    "name": "Version 7ae14c86",
+    "name": "Version 549a0467",
     "description": ""
   }
 }
