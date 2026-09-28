@@ -6,7 +6,7 @@ PSQL := $(DC) exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USE
 FIXTURE_KEY := 4444AAAiAAAAAiAiAiiAii==:a1b2c3d4-0000-1111-2222-333344445555
 LAST_EXEC_SQL := select e.id || '|' || e.status || '|' || d.data from execution_entity e join execution_data d on d.\"executionId\" = e.id order by e.id desc limit 1
 
-.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom last-execution test-download
+.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom last-execution test-download test-transcribe
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n",$$1,$$2}'
@@ -60,6 +60,14 @@ test-download: ## Fresh recording.completed → n8n downloads audio from mock-zo
 	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
 	@sleep 5; $(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Download Audio"
+
+test-transcribe: ## Fresh event → download → Whisper; prints text length only (~$0.006/min audio)
+	@$(PSQL) -qc "delete from app.processed_events where idempotency_key='$(FIXTURE_KEY)'"
+	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
+	@echo "waiting for transcription..."; for i in $$(seq 1 60); do sleep 3; \
+	  st=$$($(PSQL) -Atc "select status from execution_entity order by id desc limit 1"); \
+	  [ "$$st" != "running" ] && [ "$$st" != "new" ] && break; done
+	@$(PSQL) -Atc "$(LAST_EXEC_SQL)" | python3 scripts/last_execution.py --expect-node "Transcribe" --text-stats "Transcribe"
 
 test-mock-zoom: ## Check n8n can download fixtures/audio/sample.m4a from mock-zoom
 	@test -f fixtures/audio/sample.m4a || { echo "missing fixtures/audio/sample.m4a (see fixtures/audio/README.md)"; exit 1; }

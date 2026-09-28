@@ -36,7 +36,7 @@
           "recording_end": "2026-09-28T10:32:10Z",
           "file_type": "M4A",
           "file_extension": "M4A",
-          "file_size": 6522143,
+          "file_size": 6522104,
           "download_url": "http://mock-zoom:8000/sample.m4a",
           "status": "completed",
           "recording_type": "audio_only"

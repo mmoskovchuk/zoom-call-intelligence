@@ -51,6 +51,11 @@ def unflatten(arr: list):
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--expect-node", action="append", default=[])
+    parser.add_argument(
+        "--text-stats",
+        metavar="NODE",
+        help="print length/word count of json.text from NODE (content itself is never printed)",
+    )
     args = parser.parse_args()
 
     line = sys.stdin.read().strip()
@@ -77,6 +82,16 @@ def main() -> int:
             print(f"      error: {run['error'].get('message')}")
 
     ok = status == "success"
+    if args.text_stats:
+        runs = run_data.get(args.text_stats) or [{}]
+        outputs = (runs[-1].get("data") or {}).get("main") or [[]]
+        item = (outputs[0] or [{}])[0]
+        text = (item.get("json") or {}).get("text")
+        if isinstance(text, str) and text.strip():
+            print(f"text from '{args.text_stats}': {len(text)} chars, {len(text.split())} words")
+        else:
+            print(f"no json.text in '{args.text_stats}'")
+            ok = False
     for node in args.expect_node:
         if node not in run_data:
             print(f"expected node did not run: {node}")
