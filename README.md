@@ -27,6 +27,7 @@ Zoom ──(recording.completed, HMAC-signed)──► Cloudflare Tunnel ──�
 ```bash
 make init          # .env with generated secrets
 make up            # postgres + n8n → http://localhost:${N8N_HOST_PORT}
+make db-migrate    # app schema (db/migrations/*.sql)
 make import        # load workflows/*.json
 make publish ID=zoomIntake00001
 make test-webhook  # signed fixtures: url_validation, recording.completed, bad signature
