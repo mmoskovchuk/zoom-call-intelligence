@@ -1,0 +1,228 @@
+{
+  "updatedAt": "2026-09-28T11:44:31.755Z",
+  "createdAt": "2026-09-28T11:44:29.780Z",
+  "id": "zoomIntake00001",
+  "name": "01 · Zoom Webhook Intake",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "abec9811-7e34-41f2-beae-ca4056b84cf2",
+      "name": "Zoom Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "b7c2f6a4-2d1e-4a5b-9c3e-7f1a2b3c4d5e",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zoom",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "09db94c7-1dd1-46f9-bacc-972769ab9fa5",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Zoom webhook signature verification + URL validation challenge.\n// Docs: https://developers.zoom.us/docs/api/webhooks/#verify-webhook-events\nconst crypto = require('crypto');\n\nconst MAX_SKEW_SEC = 300; // replay protection window\nconst secret = $env.ZOOM_WEBHOOK_SECRET_TOKEN;\nconst { headers, body } = $input.first().json;\n\nconst hmac = (msg) => crypto.createHmac('sha256', secret).update(msg).digest('hex');\nconst safeEqual = (a, b) =>\n  a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));\n\nconst ts = headers['x-zm-request-timestamp'] ?? '';\nconst signature = headers['x-zm-signature'] ?? '';\n// Zoom signs compact JSON; re-serialization matches Zoom's reference implementation.\nconst expected = `v0=${hmac(`v0:${ts}:${JSON.stringify(body)}`)}`;\nconst isFresh = Math.abs(Date.now() / 1000 - Number(ts)) <= MAX_SKEW_SEC;\nconst isValid = Boolean(secret) && isFresh && safeEqual(signature, expected);\n\nconst event = body?.event ?? 'unknown';\nlet route, response;\n\nif (!isValid) {\n  route = 'invalid';\n  response = { status: 401, body: { error: 'invalid signature' } };\n} else if (event === 'endpoint.url_validation') {\n  const plainToken = body.payload.plainToken;\n  route = 'url_validation';\n  response = { status: 200, body: { plainToken, encryptedToken: hmac(plainToken) } };\n} else if (event === 'recording.completed') {\n  route = 'recording.completed';\n  response = { status: 200, body: { status: 'accepted' } };\n} else {\n  route = 'ignored';\n  response = { status: 200, body: { status: 'ignored', event } };\n}\n\nreturn [{ json: { route, event, event_ts: body?.event_ts ?? null, response } }];\n"
+      }
+    },
+    {
+      "id": "bd0c2cc7-6e5f-4979-bfa7-dbaca7b4845a",
+      "name": "Respond to Zoom",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response.body }}",
+        "options": {
+          "responseCode": "={{ $json.response.status }}"
+        }
+      }
+    },
+    {
+      "id": "d8157c12-31ff-467b-a221-b2a868c0c017",
+      "name": "Is Recording Completed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3ab40091-a750-4a52-890b-f4fb80c8cfb6",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "recording.completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5520de02-ca52-4d4c-88bb-8658a9c42b8b",
+      "name": "Normalize Recording",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "// Map Zoom recording.completed payload -> internal CallRecording contract.\nconst { body } = $('Zoom Webhook').first().json;\nconst rec = body.payload.object;\nconst files = (rec.recording_files ?? []).filter((f) => f.status === 'completed');\n\n// Prefer audio-only track (smaller, Whisper-friendly), fall back to M4A/MP4.\nconst audio =\n  files.find((f) => f.recording_type === 'audio_only') ??\n  files.find((f) => f.file_type === 'M4A') ??\n  files.find((f) => f.file_type === 'MP4');\n\nif (!audio) {\n  throw new Error(`No downloadable audio in recording ${rec.uuid}`);\n}\n\nreturn [{\n  json: {\n    idempotency_key: `${rec.uuid}:${audio.id}`,\n    source: 'zoom',\n    meeting: {\n      uuid: rec.uuid,\n      id: rec.id,\n      topic: rec.topic,\n      host_email: rec.host_email,\n      start_time: rec.start_time,\n      duration_min: rec.duration,\n    },\n    audio: {\n      file_id: audio.id,\n      file_type: audio.file_type,\n      file_extension: (audio.file_extension ?? audio.file_type).toLowerCase(),\n      file_size: audio.file_size,\n      download_url: audio.download_url,\n      download_token: body.download_token ?? null,\n    },\n    received_at: new Date().toISOString(),\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "b61cc694-00e4-4142-84f0-0d7fc6b4187a",
+      "name": "TODO: Step 2 (Download + Transcribe)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c4f41788-eca0-4c18-b3b4-6e5bcb848654",
+      "name": "Stop (no processing)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Zoom Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "Respond to Zoom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Zoom": {
+      "main": [
+        [
+          {
+            "node": "Is Recording Completed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Recording Completed?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Recording",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop (no processing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Recording": {
+      "main": [
+        [
+          {
+            "node": "TODO: Step 2 (Download + Transcribe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "cfdc0d2d-5c2a-4d5b-a66d-97387d7fa160",
+  "activeVersionId": "cfdc0d2d-5c2a-4d5b-a66d-97387d7fa160",
+  "versionCounter": 1,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-09-28T11:44:29.780Z",
+      "createdAt": "2026-09-28T11:44:29.780Z",
+      "role": "workflow:owner",
+      "workflowId": "zoomIntake00001",
+      "projectId": "VGZtpznPQlazXGAI",
+      "project": {
+        "updatedAt": "2026-09-28T11:44:15.570Z",
+        "createdAt": "2026-09-28T11:44:15.570Z",
+        "id": "VGZtpznPQlazXGAI",
+        "name": "Unnamed Project",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "4cc49c08-a932-4c98-bbd9-a89c63cb5069"
+      }
+    }
+  ],
+  "versionMetadata": {
+    "name": null,
+    "description": null
+  }
+}

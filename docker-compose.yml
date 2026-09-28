@@ -1,0 +1,82 @@
+name: zoom-call-intelligence
+
+x-n8n-env: &n8n-env
+  # --- Core ---
+  N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY in .env}
+  N8N_HOST: ${N8N_HOST:-localhost}
+  N8N_PORT: 5678
+  N8N_PROTOCOL: http
+  WEBHOOK_URL: ${WEBHOOK_URL:-http://localhost:5678/}
+  N8N_PROXY_HOPS: 1
+  N8N_SECURE_COOKIE: "false"
+  GENERIC_TIMEZONE: ${TZ:-Europe/Kyiv}
+  TZ: ${TZ:-Europe/Kyiv}
+  N8N_DIAGNOSTICS_ENABLED: "false"
+  N8N_PERSONALIZATION_ENABLED: "false"
+  # --- DB ---
+  DB_TYPE: postgresdb
+  DB_POSTGRESDB_HOST: postgres
+  DB_POSTGRESDB_PORT: 5432
+  DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+  DB_POSTGRESDB_USER: ${POSTGRES_USER}
+  DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+  # --- Binary data (audio) on disk instead of DB/memory ---
+  N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+  # --- Code node ---
+  NODE_FUNCTION_ALLOW_BUILTIN: crypto
+  N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+  # --- Execution data retention ---
+  EXECUTIONS_DATA_PRUNE: "true"
+  EXECUTIONS_DATA_MAX_AGE: 168
+  # --- App secrets exposed to workflows via $env ---
+  ZOOM_WEBHOOK_SECRET_TOKEN: ${ZOOM_WEBHOOK_SECRET_TOKEN}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-2.39.6}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${N8N_HOST_PORT:-5678}:5678"
+    environment: *n8n-env
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Public HTTPS endpoint for Zoom webhooks (Cloudflare Quick Tunnel, no account needed).
+  # Start with: docker compose --profile tunnel up -d
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://n8n:5678
+    depends_on:
+      n8n:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  n8n_data:

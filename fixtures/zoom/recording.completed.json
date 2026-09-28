@@ -1,0 +1,47 @@
+{
+  "event": "recording.completed",
+  "event_ts": 1759060000000,
+  "download_token": "fake-download-token",
+  "payload": {
+    "account_id": "AbCdEfGhIj",
+    "object": {
+      "uuid": "4444AAAiAAAAAiAiAiiAii==",
+      "id": 81234567890,
+      "host_id": "x1yCzABCDEfg23HiJKl4mN",
+      "host_email": "sales@example.com",
+      "topic": "Discovery call — ACME Corp",
+      "type": 2,
+      "start_time": "2026-09-28T10:00:00Z",
+      "timezone": "Europe/Kyiv",
+      "duration": 32,
+      "total_size": 52428800,
+      "recording_count": 2,
+      "recording_files": [
+        {
+          "id": "ed6c2f27-2ae7-42f4-b3d0-835b493e4fa8",
+          "meeting_id": "4444AAAiAAAAAiAiAiiAii==",
+          "recording_start": "2026-09-28T10:00:05Z",
+          "recording_end": "2026-09-28T10:32:10Z",
+          "file_type": "MP4",
+          "file_extension": "MP4",
+          "file_size": 48000000,
+          "download_url": "https://example.zoom.us/rec/download/video.mp4",
+          "status": "completed",
+          "recording_type": "shared_screen_with_speaker_view"
+        },
+        {
+          "id": "a1b2c3d4-0000-1111-2222-333344445555",
+          "meeting_id": "4444AAAiAAAAAiAiAiiAii==",
+          "recording_start": "2026-09-28T10:00:05Z",
+          "recording_end": "2026-09-28T10:32:10Z",
+          "file_type": "M4A",
+          "file_extension": "M4A",
+          "file_size": 4428800,
+          "download_url": "https://example.zoom.us/rec/download/audio.m4a",
+          "status": "completed",
+          "recording_type": "audio_only"
+        }
+      ]
+    }
+  }
+}

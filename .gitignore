@@ -1,0 +1,12 @@
+.env
+data/**
+!data/**/
+!data/**/.gitkeep
+__pycache__/
+.venv/
+*.pyc
+.vscode/*
+!.vscode/extensions.json
+
+# Local-only context (personal prompt, notes)
+*.local.md
