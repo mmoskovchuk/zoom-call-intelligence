@@ -48,6 +48,32 @@ def unflatten(arr: list):
     return build(arr[0], 0)
 
 
+def shape(value, indent: str = "    ") -> list[str]:
+    """Describe structure without revealing content: keys, types, string lengths, array sizes."""
+    lines = []
+    if isinstance(value, dict):
+        for key, sub in value.items():
+            if isinstance(sub, (dict, list)):
+                size = f"[{len(sub)}]" if isinstance(sub, list) else ""
+                lines.append(f"{indent}{key}: {type(sub).__name__}{size}")
+                first = sub[0] if isinstance(sub, list) and sub else sub
+                if isinstance(first, (dict, list)) and first:
+                    lines.extend(shape(first, indent + "  "))
+            elif isinstance(sub, str):
+                lines.append(f"{indent}{key}: str({len(sub)})")
+            else:
+                lines.append(f"{indent}{key}: {type(sub).__name__}")
+    elif isinstance(value, list) and value:
+        lines.extend(shape(value[0], indent))
+    return lines
+
+
+def first_item_json(run_data: dict, node: str) -> dict:
+    runs = run_data.get(node) or [{}]
+    outputs = (runs[-1].get("data") or {}).get("main") or [[]]
+    return ((outputs[0] or [{}])[0]).get("json") or {}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--expect-node", action="append", default=[])
@@ -55,6 +81,11 @@ def main() -> int:
         "--text-stats",
         metavar="NODE",
         help="print length/word count of json.text from NODE (content itself is never printed)",
+    )
+    parser.add_argument(
+        "--shape",
+        metavar="NODE",
+        help="print the structure (keys, types, lengths) of NODE's first output item — no values",
     )
     args = parser.parse_args()
 
@@ -82,11 +113,11 @@ def main() -> int:
             print(f"      error: {run['error'].get('message')}")
 
     ok = status == "success"
+    if args.shape:
+        print(f"shape of '{args.shape}' output (no values):")
+        print("\n".join(shape(first_item_json(run_data, args.shape))) or "    (empty)")
     if args.text_stats:
-        runs = run_data.get(args.text_stats) or [{}]
-        outputs = (runs[-1].get("data") or {}).get("main") or [[]]
-        item = (outputs[0] or [{}])[0]
-        text = (item.get("json") or {}).get("text")
+        text = first_item_json(run_data, args.text_stats).get("text")
         if isinstance(text, str) and text.strip():
             print(f"text from '{args.text_stats}': {len(text)} chars, {len(text.split())} words")
         else:

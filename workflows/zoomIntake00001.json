@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-28T15:46:51.635Z",
+  "updatedAt": "2026-09-28T16:08:43.816Z",
   "createdAt": "2026-09-28T11:44:29.780Z",
   "id": "zoomIntake00001",
   "name": "01 · Zoom Webhook Intake",
@@ -205,8 +205,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        1328,
-        -304
+        1168,
+        -160
       ],
       "id": "d0abe6f6-57f9-4f6d-b82e-ab66dc9c12d5",
       "name": "Download Audio",
@@ -223,8 +223,8 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.3,
       "position": [
-        1680,
-        -336
+        1392,
+        -160
       ],
       "id": "00299357-e7f2-4122-82ab-ece7e4c34ad4",
       "name": "Transcribe",
@@ -238,14 +238,62 @@
       }
     },
     {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-6-luna",
+          "mode": "list",
+          "cachedResultName": "GPT-6-LUNA"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Ти аналізуєш транскрипти ділових дзвінків.\nВикористовуй лише факти, прямо названі в транскрипті — ніколи не вигадуй імена, дати чи задачі.\nЯкщо учасники не назвали себе, позначай їх «Учасник 1», «Учасник 2».\nУсі текстові значення пиши українською мовою, навіть якщо розмова іншою мовою."
+            },
+            {
+              "content": "=Тема зустрічі: {{ $('Normalize Recording').item.json.meeting.topic }}\n\nТранскрипт:\n{{ $json.text }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "name": "call_analysis",
+              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"required\": [\"summary\", \"participants\", \"key_points\", \"action_items\"],\n  \"properties\": {\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"3-5 sentence summary of the call\"\n    },\n    \"participants\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\"name\", \"role\"],\n        \"properties\": {\n          \"name\": { \"type\": \"string\", \"description\": \"Name as mentioned, or 'Speaker 1', 'Speaker 2'…\" },\n          \"role\": { \"type\": [\"string\", \"null\"], \"description\": \"Role/company if stated, else null\" }\n        }\n      }\n    },\n    \"key_points\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"description\": \"Main topics, facts, decisions\"\n    },\n    \"action_items\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"additionalProperties\": false,\n        \"required\": [\"task\", \"owner\", \"due\"],\n        \"properties\": {\n          \"task\": { \"type\": \"string\" },\n          \"owner\": { \"type\": [\"string\", \"null\"], \"description\": \"Who is responsible, if stated\" },\n          \"due\": { \"type\": [\"string\", \"null\"], \"description\": \"Deadline as stated, if any\" }\n        }\n      }\n    }\n  }\n}",
+              "strict": true
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        -160
+      ],
+      "id": "f393548a-e868-4f6d-ba23-efe0b92afb42",
+      "name": "Analyze",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "AtKEtaXjstKCRc90",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
       "parameters": {},
       "id": "b61cc694-00e4-4142-84f0-0d7fc6b4187a",
-      "name": "TODO: Step 3 (Analyze)",
+      "name": "TODO: Step 4 (Save)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2064,
-        -352
+        1888,
+        -160
       ]
     }
   ],
@@ -356,7 +404,18 @@
       "main": [
         [
           {
-            "node": "TODO: Step 3 (Analyze)",
+            "node": "Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze": {
+      "main": [
+        [
+          {
+            "node": "TODO: Step 4 (Save)",
             "type": "main",
             "index": 0
           }
@@ -376,14 +435,14 @@
   },
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "b62df512-3d02-4593-b874-d15699d499f4",
-  "activeVersionId": "b62df512-3d02-4593-b874-d15699d499f4",
-  "versionCounter": 55,
+  "versionId": "098c3d5b-b5ac-4f8d-95e6-073b9f1af3bc",
+  "activeVersionId": "098c3d5b-b5ac-4f8d-95e6-073b9f1af3bc",
+  "versionCounter": 79,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "tags": [],
   "versionMetadata": {
-    "name": "Version b62df512",
+    "name": "Version 098c3d5b",
     "description": ""
   }
 }

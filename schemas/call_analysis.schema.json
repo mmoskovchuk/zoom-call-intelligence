@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "participants", "key_points", "action_items"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "3-5 sentence summary of the call"
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role"],
+        "properties": {
+          "name": { "type": "string", "description": "Name as mentioned, or 'Speaker 1', 'Speaker 2'…" },
+          "role": { "type": ["string", "null"], "description": "Role/company if stated, else null" }
+        }
+      }
+    },
+    "key_points": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Main topics, facts, decisions"
+    },
+    "action_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "owner", "due"],
+        "properties": {
+          "task": { "type": "string" },
+          "owner": { "type": ["string", "null"], "description": "Who is responsible, if stated" },
+          "due": { "type": ["string", "null"], "description": "Deadline as stated, if any" }
+        }
+      }
+    }
+  }
+}
