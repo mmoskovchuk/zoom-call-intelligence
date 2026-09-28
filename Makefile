@@ -5,7 +5,7 @@ PSQL := $(DC) exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$$POSTGRES_USE
 # idempotency_key of fixtures/zoom/recording.completed.json (<meeting_uuid>:<audio file_id>)
 FIXTURE_KEY := 4444AAAiAAAAAiAiAiiAii==:a1b2c3d4-0000-1111-2222-333344445555
 
-.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency
+.PHONY: help init up down logs tunnel tunnel-url import export publish test-webhook ps db-migrate db-shell test-idempotency test-mock-zoom
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-18s %s\n",$$1,$$2}'
@@ -51,6 +51,12 @@ test-webhook: ## Send signed fixtures to local webhook
 	./scripts/send_zoom_event.py fixtures/zoom/endpoint.url_validation.json
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json
 	./scripts/send_zoom_event.py fixtures/zoom/recording.completed.json --bad-signature
+
+test-mock-zoom: ## Check n8n can download fixtures/audio/sample.m4a from mock-zoom
+	@test -f fixtures/audio/sample.m4a || { echo "missing fixtures/audio/sample.m4a (see fixtures/audio/README.md)"; exit 1; }
+	@size=$$($(DC) exec -T n8n sh -c 'wget -qO- http://mock-zoom:8000/sample.m4a | wc -c'); \
+	  expected=$$(stat -c %s fixtures/audio/sample.m4a); \
+	  echo "downloaded $$size bytes, expected $$expected"; [ "$$size" = "$$expected" ] && echo "mock-zoom OK" || { echo "mock-zoom FAILED"; exit 1; }
 
 db-migrate: ## Apply db/migrations/*.sql (idempotent)
 	@for f in db/migrations/*.sql; do echo "→ $$f"; $(PSQL) -q < $$f || exit 1; done

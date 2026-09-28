@@ -36,8 +36,8 @@
           "recording_end": "2026-09-28T10:32:10Z",
           "file_type": "M4A",
           "file_extension": "M4A",
-          "file_size": 4428800,
-          "download_url": "https://example.zoom.us/rec/download/audio.m4a",
+          "file_size": 6522143,
+          "download_url": "http://mock-zoom:8000/sample.m4a",
           "status": "completed",
           "recording_type": "audio_only"
         }

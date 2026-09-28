@@ -77,6 +77,20 @@ services:
       n8n:
         condition: service_healthy
 
+  # Stand-in for Zoom's file storage: serves fixtures/audio/ to n8n (dev/test only).
+  # download_url in fixtures → http://mock-zoom:8000/sample.m4a
+  mock-zoom:
+    image: python:3.12-alpine
+    restart: unless-stopped
+    command: python -m http.server 8000 --directory /srv
+    volumes:
+      - ./fixtures/audio:/srv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:8000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   n8n_data:

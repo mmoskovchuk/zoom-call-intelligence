@@ -2,6 +2,10 @@
 data/**
 !data/**/
 !data/**/.gitkeep
+# Test audio may contain real voices — keep local (see fixtures/audio/README.md)
+fixtures/audio/*
+!fixtures/audio/.gitkeep
+!fixtures/audio/README.md
 __pycache__/
 .venv/
 *.pyc
