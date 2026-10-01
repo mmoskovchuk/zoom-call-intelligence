@@ -1,5 +1,7 @@
 # Zoom Call Intelligence Pipeline
 
+**English** · [Українська](README.uk.md)
+
 [![CI](https://github.com/mmoskovchuk/zoom-call-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/mmoskovchuk/zoom-call-intelligence/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
