@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Static checks only: the pipeline tests (make test-*) need a running n8n stack
+# and an OpenAI key, so they stay local.
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install ruff jsonschema
+
+      - name: Lint scripts
+        run: ruff check scripts/
+
+      - name: JSON files are valid
+        run: |
+          for f in $(git ls-files '*.json'); do
+            python -m json.tool "$f" > /dev/null || { echo "invalid JSON: $f"; exit 1; }
+          done
+
+      # The documented example must match the contract that GPT is constrained by.
+      - name: Example report matches the analysis schema
+        run: |
+          python - <<'PY'
+          import json, jsonschema
+          schema = json.load(open("schemas/call_analysis.schema.json"))
+          jsonschema.Draft202012Validator.check_schema(schema)
+          example = json.load(open("docs/example-report.json"))
+          jsonschema.validate(example["analysis"], schema)
+          print("docs/example-report.json is valid")
+          PY
+
+      # Exports must not contain owner info or pinned data (may hold real transcripts).
+      - name: Workflow exports are clean
+        run: |
+          python scripts/clean_workflow_exports.py workflows/*.json
+          git diff --exit-code workflows/
+
+      - name: docker-compose.yml is valid
+        run: |
+          make init
+          docker compose config -q
+          docker compose --profile tunnel config -q

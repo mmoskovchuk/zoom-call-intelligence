@@ -1,5 +1,8 @@
 # Zoom Call Intelligence Pipeline
 
+[![CI](https://github.com/mmoskovchuk/zoom-call-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/mmoskovchuk/zoom-call-intelligence/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Automated post-call pipeline: **Zoom recording → n8n → OpenAI (Whisper + GPT) → Postgres report**.
 
 The user just records a Zoom call to the cloud — a structured report (summary, participants, key points, action items) appears automatically.
@@ -64,6 +67,8 @@ Put a short speech recording at `fixtures/audio/sample.m4a` (see `fixtures/audio
 | `make test-e2e` | full pipeline → `call_reports` row, status `done` | ≈ $0.006/min audio |
 | `make last-execution` | summary of the latest run (nodes, status, binary metadata — never item data) | — |
 
+GitHub Actions runs static checks on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): ruff on `scripts/`, JSON validity, the example report against the analysis schema, clean workflow exports (no owner info or pinned data), and `docker-compose.yml` validation. The pipeline tests above need a running stack and an OpenAI key, so they stay local.
+
 ## Design notes
 - **Respond first, process later** — Zoom expects a reply within 3 s; transcription takes minutes.
 - **Idempotency** — `UNIQUE(idempotency_key)` + `INSERT … ON CONFLICT`; duplicates are skipped atomically, previously failed events are re-processed.
@@ -92,3 +97,6 @@ Workflow changes are made in the UI and committed via `make export` (strips owne
 - n8n bound to `127.0.0.1`; only the tunnel is public.
 - Secrets live in `.env` / encrypted n8n credentials; `.env.example` documents all variables.
 - Test recordings (`fixtures/audio/*`) are git-ignored; transcripts stay in the local database.
+
+## License
+[MIT](LICENSE)
